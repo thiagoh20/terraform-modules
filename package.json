@@ -1,0 +1,9 @@
+{
+  "name": "terraform-modules",
+  "version": "1.0.0",
+  "description": "Terraform modules repository",
+  "private": true,
+  "devDependencies": {
+    "conventional-changelog-conventionalcommits": "^7.0.0"
+  }
+}
