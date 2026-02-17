@@ -77,8 +77,9 @@ jobs:
     if: github.ref == 'refs/heads/main'
 
     permissions:
-      contents: write  # Para crear releases y tags
-      pull-requests: read  # Para leer PRs
+      contents: write 
+      pull-requests: read
+      issues: write 
 
     outputs:
       new-release-published: ${{ steps.semantic.outputs.new_release_published }}
@@ -100,11 +101,6 @@ jobs:
       id: semantic
       uses: cycjimmy/semantic-release-action@v4
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        extra_plugins: |
-          @semantic-release/changelog
-          @semantic-release/git
-          conventional-changelog-conventionalcommits         
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}         
 
   
