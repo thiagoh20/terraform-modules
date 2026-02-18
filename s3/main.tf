@@ -39,10 +39,4 @@ resource "aws_s3_bucket_public_access_block" "frontend" {
 #     }
 #   }
 # }
-resource "aws_cloudfront_origin_access_control" "website" {
-  name                              = "${var.bucket_name}-oac"
-  description                       = "Cerrar la puerta de entrada a ${var.bucket_name}"
-  origin_access_control_origin_type = "s3"
-  signing_behavior                  = "always"
-  signing_protocol                  = "sigv4"
-}
+# Nota: El Origin Access Control se crea en el módulo CloudFront, no aquí
