@@ -1,15 +1,7 @@
-# terraform/modules/iam-oidc/main.tf
-# OIDC Provider para GitHub
-# Usamos data source porque el OIDC provider ya existe en la cuenta de AWS
-# (es un recurso compartido que puede ser usado por múltiples proyectos)
-data "tls_certificate" "github" {
-  url = "https://token.actions.githubusercontent.com"
-}
 
 data "aws_iam_openid_connect_provider" "github" {
-  url = "https://token.actions.githubusercontent.com"
+  arn = var.oidc_provider_arn
 }
-
 # IAM Role para GitHub Actions
 resource "aws_iam_role" "github_actions" {
   name = "github-actions-${replace(var.github_repository, "/", "-")}-${var.environment}"
@@ -35,87 +27,25 @@ resource "aws_iam_role" "github_actions" {
     ]
   })
 
-  tags = var.tags
+  tags = merge(
+    var.tags,
+    {
+      Name        = var.role_name
+      Module      = "github-oidc-role"
+    }
+  )
 }
 
-# Política para S3
-resource "aws_iam_role_policy" "s3_access" {
-  name = "s3-access"
-  role = aws_iam_role.github_actions.id
 
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "s3:PutObject",
-          "s3:GetObject",
-          "s3:DeleteObject",
-          "s3:ListBucket"
-        ]
-        Resource = [
-          var.bucket_arn,
-          "${var.bucket_arn}/*"
-        ]
-      }
-    ]
-  })
+resource "aws_iam_role_policy_attachment" "github_actions" {
+  count      = length(var.role_policy_arns)
+  role       = aws_iam_role.github_actions.name
+  policy_arn = var.role_policy_arns[count.index]
 }
 
-# Política para CloudFront
-resource "aws_iam_role_policy" "cloudfront_access" {
-  name = "cloudfront-access"
-  role = aws_iam_role.github_actions.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "cloudfront:CreateInvalidation",
-          "cloudfront:GetInvalidation",
-          "cloudfront:ListInvalidations"
-        ]
-        Resource = var.distribution_arn
-      }
-    ]
-  })
-}
-
-# Política para Terraform (permisos necesarios para crear/modificar recursos)
-resource "aws_iam_role_policy" "terraform_access" {
-  name = "terraform-access"
-  role = aws_iam_role.github_actions.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "s3:*",
-          "cloudfront:*",
-          "iam:CreateRole",
-          "iam:DeleteRole",
-          "iam:GetRole",
-          "iam:ListRolePolicies",
-          "iam:ListAttachedRolePolicies",
-          "iam:PutRolePolicy",
-          "iam:DeleteRolePolicy",
-          "iam:AttachRolePolicy",
-          "iam:DetachRolePolicy",
-          "iam:CreateOpenIDConnectProvider",
-          "iam:GetOpenIDConnectProvider",
-          "iam:ListOpenIDConnectProviders",
-          "iam:TagOpenIDConnectProvider",
-          "iam:UntagOpenIDConnectProvider",
-          "iam:UpdateOpenIDConnectProviderThumbprint",
-          "iam:DeleteOpenIDConnectProvider"
-        ]
-        Resource = "*"
-      }
-    ]
-  })
-}
+resource "aws_iam_role_policy" "github_actions_inline" {
+  count   = var.inline_policy_json != null ? 1 : 0
+  name    = "${var.role_name}-inline-policy"
+  role    = aws_iam_role.github_actions.id
+  policy  = var.inline_policy_json
+} 

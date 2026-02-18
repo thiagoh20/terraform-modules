@@ -14,7 +14,7 @@ resource "aws_cloudfront_distribution" "frontend" {
   default_root_object = "index.html"
 
   origin {
-    domain_name              = var.bucket_domain_name
+    domain_name              = var.domain_name
     origin_id                = "S3-${var.bucket_id}"
     origin_access_control_id = aws_cloudfront_origin_access_control.s3_oac.id
   }
