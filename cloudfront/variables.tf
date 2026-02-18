@@ -20,6 +20,7 @@ variable "tags" {
   default     = {}
 }
 variable "certificate_arn" {
-  description = "ARN of the SSL certificate in ACM (must be in us-east-1)"
+  description = "ARN of the SSL certificate in ACM (must be in us-east-1). Optional, if not provided, CloudFront default certificate will be used"
   type        = string
+  default     = ""
 }
