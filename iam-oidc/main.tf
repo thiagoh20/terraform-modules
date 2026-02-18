@@ -30,8 +30,8 @@ resource "aws_iam_role" "github_actions" {
   tags = merge(
     var.tags,
     {
-      Name        = var.role_name
-      Module      = "github-oidc-role"
+      Name   = var.role_name
+      Module = "github-oidc-role"
     }
   )
 }
@@ -44,8 +44,8 @@ resource "aws_iam_role_policy_attachment" "github_actions" {
 }
 
 resource "aws_iam_role_policy" "github_actions_inline" {
-  count   = var.inline_policy_json != null ? 1 : 0
-  name    = "${var.role_name}-inline-policy"
-  role    = aws_iam_role.github_actions.id
-  policy  = var.inline_policy_json
+  count  = var.inline_policy_json != null ? 1 : 0
+  name   = "${var.role_name}-inline-policy"
+  role   = aws_iam_role.github_actions.id
+  policy = var.inline_policy_json
 } 
