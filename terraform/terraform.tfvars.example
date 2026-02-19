@@ -1,0 +1,48 @@
+# Copia este archivo a terraform.tfvars y completa los valores
+
+aws_region   = "us-east-1"
+project_name = "foodoffice"
+environment  = "dev"
+
+# Database configuration
+db_name     = "foodoffice"
+db_username = "foodoffice"
+db_password = "TU_PASSWORD_SEGURO_AQUI" # Cambia esto por una contraseña segura
+# NOTA: En producción, considera usar AWS Secrets Manager en lugar de variables
+
+# RDS instance configuration (AWS Free Tier)
+db_instance_class      = "db.t2.micro"  # Free Tier: db.t2.micro (válido por 12 meses)
+db_engine_version      = "16.1"
+db_allocated_storage   = 20             # Free Tier: 20 GB máximo
+db_max_allocated_storage = 0            # 0 = deshabilitado (Free Tier), en producción usa 100-1000
+db_storage_type        = "gp2"          # gp2 para Free Tier, gp3 para producción
+db_storage_encrypted   = true           # Recomendado: true (puede tener costo en Free Tier)
+# db_kms_key_id        = null           # Usa null para clave por defecto de AWS, o especifica un KMS key ARN
+
+db_multi_az            = false          # Multi-AZ no está en Free Tier (habilitar en producción)
+
+# Backup configuration (AWS Free Tier)
+db_backup_retention_period = 1          # Free Tier: 1 día (para mantener dentro de 20 GB backup limit)
+                                        # Producción: 7-35 días recomendado
+db_backup_window          = "03:00-04:00"
+db_maintenance_window     = "mon:04:00-mon:05:00"
+
+# Monitoreo y logging
+db_enabled_cloudwatch_logs_exports = ["postgresql"]  # postgresql, upgrade
+db_monitoring_interval             = 0              # 0=deshabilitado, 60/300/600/3600 segundos
+# db_monitoring_role_arn            = null            # Requerido si monitoring_interval > 0
+db_performance_insights_enabled     = false          # Habilitar en producción para análisis
+db_performance_insights_retention_period = 7         # 7 o 731 días
+
+# Configuración adicional
+# db_parameter_group_name          = null            # Usar grupo de parámetros personalizado si es necesario
+db_auto_minor_version_upgrade      = true           # Actualizaciones automáticas de versión menor
+db_apply_immediately                = false          # false = aplicar en ventana de mantenimiento
+
+# Safety settings
+db_skip_final_snapshot = true   # Cambia a false en producción para crear snapshot final
+db_deletion_protection = false  # Cambia a true en producción para prevenir eliminación accidental
+
+# Admin access (opcional - para acceso directo desde tu IP)
+# ⚠️ ADVERTENCIA: Solo usar en desarrollo. En producción, usar VPN o bastion host.
+# admin_cidr_blocks = ["TU_IP/32"]
