@@ -52,32 +52,15 @@ resource "aws_security_group" "rds" {
 # Security Group para Lambda
 resource "aws_security_group" "lambda" {
   name        = "${var.project_name}-${var.environment}-lambda-sg"
-  description = "Security group for Lambda function to access RDS"
+  description = "Security group for Lambda function to access RDS and Internet"
   vpc_id      = var.vpc_id
 
+  # Salida permitida a 0.0.0.0/0 según arquitectura (Lambda en subredes públicas)
   egress {
-    description = "PostgreSQL to RDS"
-    from_port   = 5432
-    to_port     = 5432
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"] 
-  }
-
-  # Egress para servicios AWS (S3, Secrets Manager, etc.)
-  egress {
-    description = "HTTPS to AWS services"
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  # Egress para DNS
-  egress {
-    description = "DNS"
-    from_port   = 53
-    to_port     = 53
-    protocol    = "udp"
+    description = "All outbound traffic to Internet"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
