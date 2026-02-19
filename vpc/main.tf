@@ -50,19 +50,20 @@ resource "aws_subnet" "public" {
   }
 }
 
-# Subnets Privadas (para RDS y recursos que no necesitan acceso directo a Internet)
-resource "aws_subnet" "private" {
-  count = length(var.private_subnet_cidrs)
+# Subnets Privadas para App Layer (Lambda, ECS, etc.)
+resource "aws_subnet" "private_app" {
+  count = length(var.private_app_subnet_cidrs)
 
   vpc_id            = aws_vpc.main.id
-  cidr_block        = var.private_subnet_cidrs[count.index]
+  cidr_block        = var.private_app_subnet_cidrs[count.index]
   availability_zone = data.aws_availability_zones.available.names[count.index % length(data.aws_availability_zones.available.names)]
 
   tags = merge(
     var.tags,
     {
-      Name = "${var.project_name}-${var.environment}-private-subnet-${count.index + 1}"
-      Type = "private"
+      Name = "${var.project_name}-${var.environment}-private-app-subnet-${count.index + 1}"
+      Type = "private-app"
+      Layer = "application"
     }
   )
 
@@ -71,37 +72,135 @@ resource "aws_subnet" "private" {
   }
 }
 
-# Elastic IP para NAT Gateway (solo si se habilita NAT)
-resource "aws_eip" "nat" {
-  count = var.enable_nat_gateway ? 1 : 0
+# Subnets Privadas para Data Layer (RDS, ElastiCache, etc.)
+resource "aws_subnet" "private_data" {
+  count = length(var.private_data_subnet_cidrs)
+
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = var.private_data_subnet_cidrs[count.index]
+  availability_zone = data.aws_availability_zones.available.names[count.index % length(data.aws_availability_zones.available.names)]
+
+  tags = merge(
+    var.tags,
+    {
+      Name = "${var.project_name}-${var.environment}-private-data-subnet-${count.index + 1}"
+      Type = "private-data"
+      Layer = "data"
+    }
+  )
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+# Security Group para NAT Instance
+resource "aws_security_group" "nat_instance" {
+  count = var.enable_nat_instance ? 1 : 0
+
+  name        = "${var.project_name}-${var.environment}-nat-instance-sg"
+  description = "Security group for NAT Instance"
+  vpc_id      = aws_vpc.main.id
+
+  # Permitir tráfico saliente desde subnets privadas
+  ingress {
+    description = "All traffic from private subnets"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = concat(var.private_app_subnet_cidrs, var.private_data_subnet_cidrs)
+  }
+
+  # Permitir todo el tráfico saliente a Internet
+  egress {
+    description = "All outbound traffic"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = merge(
+    var.tags,
+    {
+      Name = "${var.project_name}-${var.environment}-nat-instance-sg"
+    }
+  )
+}
+
+# Elastic IP para NAT Instance
+resource "aws_eip" "nat_instance" {
+  count = var.enable_nat_instance ? 1 : 0
 
   domain = "vpc"
 
   tags = merge(
     var.tags,
     {
-      Name = "${var.project_name}-${var.environment}-nat-eip"
+      Name = "${var.project_name}-${var.environment}-nat-instance-eip"
     }
   )
 
   depends_on = [aws_internet_gateway.main]
 }
 
-# NAT Gateway (opcional - puede tener costos, deshabilitado por defecto para Free Tier)
-resource "aws_nat_gateway" "main" {
-  count = var.enable_nat_gateway ? 1 : 0
+# Data source para obtener la AMI de NAT más reciente
+data "aws_ami" "nat_instance" {
+  count = var.enable_nat_instance ? 1 : 0
 
-  allocation_id = aws_eip.nat[0].id
-  subnet_id     = aws_subnet.public[0].id
+  most_recent = true
+  owners      = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["amzn-ami-vpc-nat-*"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+}
+
+# NAT Instance (t2.micro - gratis en Free Tier)
+resource "aws_instance" "nat" {
+  count = var.enable_nat_instance ? 1 : 0
+
+  ami                         = data.aws_ami.nat_instance[0].id
+  instance_type               = var.nat_instance_type
+  subnet_id                   = aws_subnet.public[0].id
+  vpc_security_group_ids      = [aws_security_group.nat_instance[0].id]
+  associate_public_ip_address = true
+  source_dest_check           = false  # Requerido para NAT
 
   tags = merge(
     var.tags,
     {
-      Name = "${var.project_name}-${var.environment}-nat-gateway"
+      Name = "${var.project_name}-${var.environment}-nat-instance"
     }
   )
 
   depends_on = [aws_internet_gateway.main]
+}
+
+# Asociar Elastic IP a NAT Instance
+resource "aws_eip_association" "nat_instance" {
+  count = var.enable_nat_instance ? 1 : 0
+
+  instance_id   = aws_instance.nat[0].id
+  allocation_id = aws_eip.nat_instance[0].id
+}
+
+# Data source para obtener el network interface de la NAT Instance
+data "aws_network_interface" "nat_instance" {
+  count = var.enable_nat_instance ? 1 : 0
+
+  filter {
+    name   = "attachment.instance-id"
+    values = [aws_instance.nat[0].id]
+  }
+
+  depends_on = [aws_instance.nat]
 }
 
 # Route Table para Subnets Públicas
@@ -121,24 +220,39 @@ resource "aws_route_table" "public" {
   )
 }
 
-# Route Table para Subnets Privadas
-# Se crea siempre, pero solo tiene ruta a NAT Gateway si está habilitado
-resource "aws_route_table" "private" {
+# Route Table para Subnets Privadas App Layer (con acceso a NAT Instance si está habilitado)
+resource "aws_route_table" "private_app" {
   vpc_id = aws_vpc.main.id
 
-  # Ruta a NAT Gateway solo si está habilitado
+  # Ruta a NAT Instance si está habilitado
   dynamic "route" {
-    for_each = var.enable_nat_gateway ? [1] : []
+    for_each = var.enable_nat_instance ? [1] : []
     content {
-      cidr_block     = "0.0.0.0/0"
-      nat_gateway_id = aws_nat_gateway.main[0].id
+      cidr_block           = "0.0.0.0/0"
+      network_interface_id = data.aws_network_interface.nat_instance[0].id
     }
   }
 
   tags = merge(
     var.tags,
     {
-      Name = "${var.project_name}-${var.environment}-private-rt"
+      Name = "${var.project_name}-${var.environment}-private-app-rt"
+      Layer = "application"
+    }
+  )
+}
+
+# Route Table para Subnets Privadas Data Layer (sin acceso a Internet)
+resource "aws_route_table" "private_data" {
+  vpc_id = aws_vpc.main.id
+
+  # Data layer no necesita ruta a Internet (más seguro)
+
+  tags = merge(
+    var.tags,
+    {
+      Name = "${var.project_name}-${var.environment}-private-data-rt"
+      Layer = "data"
     }
   )
 }
@@ -151,13 +265,20 @@ resource "aws_route_table_association" "public" {
   route_table_id = aws_route_table.public.id
 }
 
-# Asociar Route Tables con Subnets Privadas
-# Siempre se asocian, incluso sin NAT Gateway (para uso futuro)
-resource "aws_route_table_association" "private" {
-  count = length(aws_subnet.private)
+# Asociar Route Tables con Subnets Privadas App Layer
+resource "aws_route_table_association" "private_app" {
+  count = length(aws_subnet.private_app)
 
-  subnet_id      = aws_subnet.private[count.index].id
-  route_table_id = aws_route_table.private.id
+  subnet_id      = aws_subnet.private_app[count.index].id
+  route_table_id = aws_route_table.private_app.id
+}
+
+# Asociar Route Tables con Subnets Privadas Data Layer
+resource "aws_route_table_association" "private_data" {
+  count = length(aws_subnet.private_data)
+
+  subnet_id      = aws_subnet.private_data[count.index].id
+  route_table_id = aws_route_table.private_data.id
 }
 
 # Data source para obtener Availability Zones disponibles

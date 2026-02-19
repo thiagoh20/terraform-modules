@@ -47,28 +47,57 @@ variable "public_subnet_cidrs" {
   }
 }
 
-variable "private_subnet_cidrs" {
-  description = "List of CIDR blocks for private subnets (minimum 2 required for RDS Multi-AZ)"
+variable "private_app_subnet_cidrs" {
+  description = "List of CIDR blocks for private app subnets (Lambda, ECS, etc.) - minimum 2 recommended for HA"
   type        = list(string)
   default     = ["10.0.10.0/24", "10.0.20.0/24"]
 
   validation {
-    condition     = length(var.private_subnet_cidrs) >= 2
-    error_message = "At least 2 private subnet CIDRs are required (for RDS Multi-AZ support)."
+    condition     = length(var.private_app_subnet_cidrs) >= 1
+    error_message = "At least 1 private app subnet CIDR is required."
   }
 
   validation {
     condition = alltrue([
-      for cidr in var.private_subnet_cidrs : can(cidrhost(cidr, 0))
+      for cidr in var.private_app_subnet_cidrs : can(cidrhost(cidr, 0))
     ])
-    error_message = "All private subnet CIDRs must be valid CIDR blocks."
+    error_message = "All private app subnet CIDRs must be valid CIDR blocks."
   }
 }
 
-variable "enable_nat_gateway" {
-  description = "Enable NAT Gateway for private subnets (has costs, disabled for Free Tier)"
+variable "private_data_subnet_cidrs" {
+  description = "List of CIDR blocks for private data subnets (RDS, ElastiCache, etc.) - minimum 2 required for RDS Multi-AZ"
+  type        = list(string)
+  default     = ["10.0.100.0/24", "10.0.200.0/24"]
+
+  validation {
+    condition     = length(var.private_data_subnet_cidrs) >= 2
+    error_message = "At least 2 private data subnet CIDRs are required (for RDS Multi-AZ support)."
+  }
+
+  validation {
+    condition = alltrue([
+      for cidr in var.private_data_subnet_cidrs : can(cidrhost(cidr, 0))
+    ])
+    error_message = "All private data subnet CIDRs must be valid CIDR blocks."
+  }
+}
+
+variable "enable_nat_instance" {
+  description = "Enable NAT Instance for private subnets (t2.micro - gratis en Free Tier)"
   type        = bool
-  default     = false
+  default     = true
+}
+
+variable "nat_instance_type" {
+  description = "Instance type for NAT Instance (t2.micro para Free Tier)"
+  type        = string
+  default     = "t2.micro"
+
+  validation {
+    condition     = can(regex("^t\\d\\.", var.nat_instance_type))
+    error_message = "NAT Instance type should be a t-series instance (e.g., t2.micro, t3.micro)."
+  }
 }
 
 variable "tags" {
