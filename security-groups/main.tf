@@ -4,27 +4,6 @@ resource "aws_security_group" "rds" {
   description = "Security group for RDS PostgreSQL instance"
   vpc_id      = var.vpc_id
 
-  # Permitir tráfico PostgreSQL desde el security group de Lambda
-  ingress {
-    description     = "PostgreSQL from Lambda"
-    from_port       = 5432
-    to_port         = 5432
-    protocol        = "tcp"
-    security_groups = [aws_security_group.lambda.id]
-  }
-
-  # Permitir acceso desde IPs administrativas (opcional)
-  dynamic "ingress" {
-    for_each = length(var.admin_cidr_blocks) > 0 ? [1] : []
-    content {
-      description = "PostgreSQL from admin IPs"
-      from_port   = 5432
-      to_port     = 5432
-      protocol    = "tcp"
-      cidr_blocks = var.admin_cidr_blocks
-    }
-  }
-
   # En producción, RDS generalmente no necesita tráfico saliente
   egress {
     description = "No outbound traffic required for RDS"
@@ -54,16 +33,6 @@ resource "aws_security_group" "lambda" {
   name        = "${var.project_name}-${var.environment}-lambda-sg"
   description = "Security group for Lambda function to access RDS and Internet"
   vpc_id      = var.vpc_id
-
-  # Permitir tráfico saliente a RDS (PostgreSQL puerto 5432)
-  # Nota: Usamos el Security Group de RDS como destino para mayor seguridad
-  egress {
-    description     = "PostgreSQL to RDS"
-    from_port       = 5432
-    to_port         = 5432
-    protocol        = "tcp"
-    security_groups = [aws_security_group.rds.id]
-  }
 
   # Permitir HTTPS para servicios AWS (API Gateway, CloudWatch, etc.)
   egress {
@@ -106,4 +75,40 @@ resource "aws_security_group" "lambda" {
   lifecycle {
     create_before_destroy = true
   }
+}
+
+# Regla de entrada para RDS: Permitir PostgreSQL desde Lambda
+# Usamos un recurso separado para evitar dependencia circular
+resource "aws_security_group_rule" "rds_ingress_from_lambda" {
+  type                     = "ingress"
+  description              = "PostgreSQL from Lambda"
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+  source_security_group_id = aws_security_group.lambda.id
+  security_group_id        = aws_security_group.rds.id
+}
+
+# Regla de entrada para RDS: Permitir acceso desde IPs administrativas (opcional)
+resource "aws_security_group_rule" "rds_ingress_from_admin" {
+  count             = length(var.admin_cidr_blocks) > 0 ? length(var.admin_cidr_blocks) : 0
+  type              = "ingress"
+  description       = "PostgreSQL from admin IPs"
+  from_port         = 5432
+  to_port           = 5432
+  protocol           = "tcp"
+  cidr_blocks       = [var.admin_cidr_blocks[count.index]]
+  security_group_id = aws_security_group.rds.id
+}
+
+# Regla de salida para Lambda: Permitir PostgreSQL hacia RDS
+# Usamos un recurso separado para evitar dependencia circular
+resource "aws_security_group_rule" "lambda_egress_to_rds" {
+  type                     = "egress"
+  description              = "PostgreSQL to RDS"
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+  source_security_group_id = aws_security_group.rds.id
+  security_group_id        = aws_security_group.lambda.id
 }
