@@ -23,14 +23,9 @@ output "rds_username" {
   value       = aws_db_instance.main.username
 }
 
-output "vpc_id" {
-  description = "VPC ID"
-  value       = data.aws_vpc.default.id
-}
-
 output "subnet_ids" {
-  description = "Subnet IDs for Lambda"
-  value       = data.aws_subnets.default.ids
+  description = "Subnet IDs used by RDS"
+  value       = var.subnet_ids
 }
 
 output "database_url" {

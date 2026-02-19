@@ -28,6 +28,16 @@ variable "rds_security_group_id" {
   }
 }
 
+variable "subnet_ids" {
+  description = "List of subnet IDs for RDS (required - typically private subnets)"
+  type        = list(string)
+
+  validation {
+    condition     = length(var.subnet_ids) >= 2
+    error_message = "At least 2 subnet IDs are required for RDS (for Multi-AZ support)."
+  }
+}
+
 # Database variables
 variable "db_name" {
   description = "Database name"
