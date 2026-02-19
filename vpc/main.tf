@@ -144,7 +144,7 @@ resource "aws_eip" "nat_instance" {
   depends_on = [aws_internet_gateway.main]
 }
 
-# Data source para obtener la AMI de NAT más reciente
+# Data source para obtener la AMI de Amazon Linux 2 más reciente
 data "aws_ami" "nat_instance" {
   count = var.enable_nat_instance ? 1 : 0
 
@@ -153,7 +153,7 @@ data "aws_ami" "nat_instance" {
 
   filter {
     name   = "name"
-    values = ["amzn-ami-vpc-nat-*"]
+    values = ["amzn2-ami-hvm-*-x86_64-gp2"]
   }
 
   filter {
@@ -163,6 +163,7 @@ data "aws_ami" "nat_instance" {
 }
 
 # NAT Instance (t2.micro - gratis en Free Tier)
+# Usando Amazon Linux 2 con configuración NAT mediante user_data
 resource "aws_instance" "nat" {
   count = var.enable_nat_instance ? 1 : 0
 
@@ -172,6 +173,27 @@ resource "aws_instance" "nat" {
   vpc_security_group_ids      = [aws_security_group.nat_instance[0].id]
   associate_public_ip_address = true
   source_dest_check           = false  # Requerido para NAT
+
+  # Script para habilitar NAT en Amazon Linux 2
+  user_data = <<-EOF
+#!/bin/bash
+# Habilitar IP forwarding
+echo 'net.ipv4.ip_forward = 1' >> /etc/sysctl.conf
+sysctl -p /etc/sysctl.conf
+
+# Configurar iptables para NAT
+yum install -y iptables-services
+systemctl enable iptables
+systemctl start iptables
+
+# Configurar NAT masquerading
+iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+iptables -A FORWARD -i eth0 -o eth0 -m state --state RELATED,ESTABLISHED -j ACCEPT
+iptables -A FORWARD -i eth0 -o eth0 -j ACCEPT
+
+# Guardar reglas de iptables
+service iptables save
+EOF
 
   tags = merge(
     var.tags,
