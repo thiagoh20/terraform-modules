@@ -1,6 +1,11 @@
 # Subnet Group para RDS
+# Usamos un hash de las subredes en el nombre para forzar recreación cuando cambian
+locals {
+  subnet_hash = substr(md5(join(",", var.subnet_ids)), 0, 8)
+}
+
 resource "aws_db_subnet_group" "main" {
-  name       = "${var.project_name}-${var.environment}-db-subnet-group"
+  name       = "${var.project_name}-${var.environment}-db-subnet-group-${local.subnet_hash}"
   subnet_ids = var.subnet_ids
 
   tags = merge(
