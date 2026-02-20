@@ -118,6 +118,12 @@ variable "db_multi_az" {
   default     = false
 }
 
+variable "db_publicly_accessible" {
+  description = "Enable public access to RDS instance (required for public subnets)"
+  type        = bool
+  default     = false
+}
+
 variable "db_backup_retention_period" {
   description = "Backup retention period in days (1 day for AWS Free Tier to stay within 20 GB backup limit)"
   type        = number
