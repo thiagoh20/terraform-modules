@@ -83,7 +83,12 @@ resource "aws_db_instance" "main" {
   )
 
   lifecycle {
-    create_before_destroy = false
+    # Forzar recreación cuando cambia el DB Subnet Group
+    # AWS no permite mover una instancia RDS entre DB Subnet Groups mediante modificación
+    replace_triggered_by = [
+      aws_db_subnet_group.main.id
+    ]
+    create_before_destroy = true
     ignore_changes = [
       # Ignorar cambios en password si se gestiona externamente
       password,
