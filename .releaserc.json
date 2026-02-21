@@ -97,7 +97,8 @@
           ]
         },
         "writerOpts": {
-          "commitsSort": ["subject", "scope"]
+          "commitsSort": ["subject", "scope"],
+          "commitPartial": "{{#if scope}}**{{scope}}:** {{/if}}{{subject}}\n\n{{#if hash}}`{{hash}}`{{/if}}{{#if body}}\n\n{{body}}{{/if}}"
         }
       }
     ],
