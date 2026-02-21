@@ -12,7 +12,7 @@ on:
 
 env:
   TERRAFORM_VERSION: "1.13.4"
-  NODE_VERSION: "20" 
+  NODE_VERSION: "20"
 
 jobs:
   validate:
@@ -63,12 +63,13 @@ jobs:
         framework: terraform
         output_format: sarif
         output_file_path: reports/results.sarif
-        soft_fail: true 
+        soft_fail: true
 
   release:
     name: Create Release
     runs-on: ubuntu-latest
     needs: [validate, security-scan]
+    # Se ejecuta solo en main tras un push exitoso
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     permissions:
@@ -76,23 +77,18 @@ jobs:
       pull-requests: write
       issues: write 
 
-    outputs:
-      new-release-published: ${{ steps.semantic.outputs.new_release_published }}
-      new-release-version: ${{ steps.semantic.outputs.new_release_version }}
-
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
 
-
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: ${{ env.NODE_VERSION }}
 
-    - name: Semantic Release
+    - name: Generate changelog and create release
       id: semantic
       uses: cycjimmy/semantic-release-action@v4.1.1
       with:
@@ -103,5 +99,6 @@ jobs:
           @semantic-release/changelog
           @semantic-release/github
           @semantic-release/git
+          conventional-changelog-conventionalcommits
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
