@@ -10,7 +10,7 @@ resource "aws_cloudfront_origin_access_control" "s3_oac" {
 resource "aws_cloudfront_distribution" "frontend" {
   enabled             = true
   is_ipv6_enabled     = true
-  comment             = "Distribución CloudFront para FoodOffice"
+  comment             = "Distribución CloudFront para ${var.domain_name}"
   default_root_object = "index.html"
 
   origin {
