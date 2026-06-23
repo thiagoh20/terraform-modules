@@ -96,7 +96,7 @@ resource "aws_route53_record" "cloudfront_distribution_alias" {
   name     = var.domain_name
   type     = "CNAME"
   ttl      = 300
-  records  = [aws_cloudfront_distribution.static_site_distribution.domain_name]
+  records  = [aws_cloudfront_distribution.frontend.domain_name]
 }
 
 resource "aws_route53_record" "cloudfront_distribution_alias_apex" {
@@ -108,8 +108,8 @@ resource "aws_route53_record" "cloudfront_distribution_alias_apex" {
   allow_overwrite = true
 
   alias {
-    name                   = aws_cloudfront_distribution.static_site_distribution.domain_name
-    zone_id                = aws_cloudfront_distribution.static_site_distribution.hosted_zone_id
+    name                   = aws_cloudfront_distribution.frontend.domain_name
+    zone_id                = aws_cloudfront_distribution.frontend.hosted_zone_id
     evaluate_target_health = false
   }
 }
