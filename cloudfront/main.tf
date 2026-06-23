@@ -17,9 +17,8 @@ resource "aws_cloudfront_distribution" "frontend" {
     connection_attempts = 3
     connection_timeout  = 10
   }
-
   aliases = concat([var.domain_name], var.extra_aliases)
-
+  comment             = var.comment
   enabled             = true
   default_root_object = "index.html"
 

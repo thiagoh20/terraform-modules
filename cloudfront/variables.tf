@@ -70,3 +70,8 @@ variable "is_apex_domain" {
   default     = false
 }
 
+variable "comment" {
+  type        = string
+  description = "The comment for the CloudFront distribution"
+  default     = ""
+}
