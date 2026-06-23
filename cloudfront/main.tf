@@ -22,22 +22,16 @@ resource "aws_cloudfront_distribution" "frontend" {
   enabled             = true
   default_root_object = "index.html"
 
-  logging_config {
-    include_cookies = false
-    bucket          = aws_s3_bucket.cloudfront_logs.bucket_domain_name
-    prefix          = "cloudfront-logs/${var.domain_name}"
-  }
-
   custom_error_response {
     error_code            = 403
-    response_code         = 403
+    response_code         = 200 
     response_page_path    = "/index.html"
     error_caching_min_ttl = 300
   }
 
   custom_error_response {
     error_code            = 404
-    response_code         = 404
+    response_code         = 200 
     response_page_path    = "/index.html"
     error_caching_min_ttl = 300
   }
@@ -66,26 +60,6 @@ resource "aws_cloudfront_distribution" "frontend" {
     ssl_support_method             = "sni-only"
     minimum_protocol_version       = "TLSv1.2_2021"
   }
-  depends_on = [aws_s3_bucket_acl.cloudfront_logs_acl]
-}
-
-resource "aws_s3_bucket" "cloudfront_logs" {
-  bucket = "logs-${var.domain_name}"
-}
-
-resource "aws_s3_bucket_ownership_controls" "cloudfront_logs_ownership" {
-  bucket = aws_s3_bucket.cloudfront_logs.id
-
-  rule {
-    object_ownership = "BucketOwnerPreferred"
-  }
-}
-
-resource "aws_s3_bucket_acl" "cloudfront_logs_acl" {
-  depends_on = [aws_s3_bucket_ownership_controls.cloudfront_logs_ownership]
-
-  bucket = aws_s3_bucket.cloudfront_logs.id
-  acl    = "private"
 }
 
 resource "aws_route53_record" "cloudfront_distribution_alias" {
