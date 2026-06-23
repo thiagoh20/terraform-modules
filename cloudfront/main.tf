@@ -8,7 +8,7 @@ provider "aws" {
 
 }
 
-resource "aws_cloudfront_distribution" "static_site_distribution" {
+resource "aws_cloudfront_distribution" "frontend" {
   origin {
     origin_id                = local.s3_origin_id
     domain_name              = var.bucket_regional_domain_name
