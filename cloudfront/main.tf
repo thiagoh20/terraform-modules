@@ -1,265 +1,59 @@
-# terraform/modules/cloudfront/main.tf
-resource "aws_cloudfront_origin_access_control" "s3_oac" {
-  name                              = "${var.bucket_id}-${var.environment}-oac"
-  description                       = "OAC para ${var.bucket_id} en ambiente ${var.environment}"
-  origin_access_control_origin_type = "s3"
-  signing_behavior                  = "always"
-  signing_protocol                  = "sigv4"
+locals {
+  s3_origin_id = var.s3_bucket_id
 }
 
-resource "aws_cloudfront_distribution" "frontend" {
+provider "aws" {
+  alias  = "dns"
+  region = var.region
+
+}
+
+resource "aws_cloudfront_distribution" "static_site_distribution" {
+  origin {
+    origin_id                = local.s3_origin_id
+    domain_name              = var.bucket_regional_domain_name
+    origin_access_control_id = var.origin_access_control_id
+
+    connection_attempts = 3
+    connection_timeout  = 10
+  }
+
+  aliases = concat([var.domain_name], var.extra_aliases)
+
   enabled             = true
-  is_ipv6_enabled     = true
-  comment             = "Distribución CloudFront para ${var.domain_name}"
   default_root_object = "index.html"
 
-  origin {
-    domain_name              = var.domain_name
-    origin_id                = "S3-${var.bucket_id}"
-    origin_access_control_id = aws_cloudfront_origin_access_control.s3_oac.id
+  logging_config {
+    include_cookies = false
+    bucket          = aws_s3_bucket.cloudfront_logs.bucket_domain_name
+    prefix          = "cloudfront-logs/${var.domain_name}"
+  }
+
+  custom_error_response {
+    error_code            = 403
+    response_code         = 403
+    response_page_path    = "/index.html"
+    error_caching_min_ttl = 300
+  }
+
+  custom_error_response {
+    error_code            = 404
+    response_code         = 404
+    response_page_path    = "/index.html"
+    error_caching_min_ttl = 300
   }
 
   default_cache_behavior {
-    allowed_methods  = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
-    cached_methods   = ["GET", "HEAD"]
-    target_origin_id = "S3-${var.bucket_id}"
-
-    forwarded_values {
-      query_string = false
-      cookies {
-        forward = "none"
-      }
-    }
-
-    viewer_protocol_policy = "redirect-to-https"
-    min_ttl                = 0
-    default_ttl            = 3600
-    max_ttl                = 31536000
+    allowed_methods        = ["GET", "HEAD", "OPTIONS"]
+    cached_methods         = ["GET", "HEAD"]
+    target_origin_id       = local.s3_origin_id
     compress               = true
+    viewer_protocol_policy = "redirect-to-https"
+
+    cache_policy_id = "658327ea-f89d-4fab-a63d-7e88639e58f6" // Managed-CachingOptimized
   }
 
-  # Cache para archivos estáticos (JS, CSS, imágenes) - 1 año
-  ordered_cache_behavior {
-    path_pattern     = "*.js"
-    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
-    cached_methods   = ["GET", "HEAD"]
-    target_origin_id = "S3-${var.bucket_id}"
-
-    forwarded_values {
-      query_string = false
-      cookies {
-        forward = "none"
-      }
-    }
-
-    viewer_protocol_policy = "redirect-to-https"
-    min_ttl                = 0
-    default_ttl            = 31536000
-    max_ttl                = 31536000
-    compress               = true
-  }
-
-  ordered_cache_behavior {
-    path_pattern     = "*.css"
-    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
-    cached_methods   = ["GET", "HEAD"]
-    target_origin_id = "S3-${var.bucket_id}"
-
-    forwarded_values {
-      query_string = false
-      cookies {
-        forward = "none"
-      }
-    }
-
-    viewer_protocol_policy = "redirect-to-https"
-    min_ttl                = 0
-    default_ttl            = 31536000
-    max_ttl                = 31536000
-    compress               = true
-  }
-
-  # Cache para imágenes - 1 año
-  ordered_cache_behavior {
-    path_pattern     = "*.jpg"
-    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
-    cached_methods   = ["GET", "HEAD"]
-    target_origin_id = "S3-${var.bucket_id}"
-
-    forwarded_values {
-      query_string = false
-      cookies {
-        forward = "none"
-      }
-    }
-
-    viewer_protocol_policy = "redirect-to-https"
-    min_ttl                = 0
-    default_ttl            = 31536000
-    max_ttl                = 31536000
-    compress               = true
-  }
-
-  ordered_cache_behavior {
-    path_pattern     = "*.jpeg"
-    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
-    cached_methods   = ["GET", "HEAD"]
-    target_origin_id = "S3-${var.bucket_id}"
-
-    forwarded_values {
-      query_string = false
-      cookies {
-        forward = "none"
-      }
-    }
-
-    viewer_protocol_policy = "redirect-to-https"
-    min_ttl                = 0
-    default_ttl            = 31536000
-    max_ttl                = 31536000
-    compress               = true
-  }
-
-  ordered_cache_behavior {
-    path_pattern     = "*.png"
-    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
-    cached_methods   = ["GET", "HEAD"]
-    target_origin_id = "S3-${var.bucket_id}"
-
-    forwarded_values {
-      query_string = false
-      cookies {
-        forward = "none"
-      }
-    }
-
-    viewer_protocol_policy = "redirect-to-https"
-    min_ttl                = 0
-    default_ttl            = 31536000
-    max_ttl                = 31536000
-    compress               = true
-  }
-
-  ordered_cache_behavior {
-    path_pattern     = "*.gif"
-    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
-    cached_methods   = ["GET", "HEAD"]
-    target_origin_id = "S3-${var.bucket_id}"
-
-    forwarded_values {
-      query_string = false
-      cookies {
-        forward = "none"
-      }
-    }
-
-    viewer_protocol_policy = "redirect-to-https"
-    min_ttl                = 0
-    default_ttl            = 31536000
-    max_ttl                = 31536000
-    compress               = true
-  }
-
-  ordered_cache_behavior {
-    path_pattern     = "*.webp"
-    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
-    cached_methods   = ["GET", "HEAD"]
-    target_origin_id = "S3-${var.bucket_id}"
-
-    forwarded_values {
-      query_string = false
-      cookies {
-        forward = "none"
-      }
-    }
-
-    viewer_protocol_policy = "redirect-to-https"
-    min_ttl                = 0
-    default_ttl            = 31536000
-    max_ttl                = 31536000
-    compress               = true
-  }
-
-  ordered_cache_behavior {
-    path_pattern     = "*.svg"
-    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
-    cached_methods   = ["GET", "HEAD"]
-    target_origin_id = "S3-${var.bucket_id}"
-
-    forwarded_values {
-      query_string = false
-      cookies {
-        forward = "none"
-      }
-    }
-
-    viewer_protocol_policy = "redirect-to-https"
-    min_ttl                = 0
-    default_ttl            = 31536000
-    max_ttl                = 31536000
-    compress               = true
-  }
-
-  ordered_cache_behavior {
-    path_pattern     = "*.ico"
-    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
-    cached_methods   = ["GET", "HEAD"]
-    target_origin_id = "S3-${var.bucket_id}"
-
-    forwarded_values {
-      query_string = false
-      cookies {
-        forward = "none"
-      }
-    }
-
-    viewer_protocol_policy = "redirect-to-https"
-    min_ttl                = 0
-    default_ttl            = 31536000
-    max_ttl                = 31536000
-    compress               = true
-  }
-
-  # Sin caché para HTML y JSON (siempre obtener la versión más reciente)
-  ordered_cache_behavior {
-    path_pattern     = "*.html"
-    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
-    cached_methods   = ["GET", "HEAD"]
-    target_origin_id = "S3-${var.bucket_id}"
-
-    forwarded_values {
-      query_string = false
-      cookies {
-        forward = "none"
-      }
-    }
-
-    viewer_protocol_policy = "redirect-to-https"
-    min_ttl                = 0
-    default_ttl            = 0
-    max_ttl                = 0
-    compress               = true
-  }
-
-  ordered_cache_behavior {
-    path_pattern     = "*.json"
-    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
-    cached_methods   = ["GET", "HEAD"]
-    target_origin_id = "S3-${var.bucket_id}"
-
-    forwarded_values {
-      query_string = false
-      cookies {
-        forward = "none"
-      }
-    }
-
-    viewer_protocol_policy = "redirect-to-https"
-    min_ttl                = 0
-    default_ttl            = 0
-    max_ttl                = 0
-    compress               = true
-  }
+  price_class = "PriceClass_All"
 
   restrictions {
     geo_restriction {
@@ -268,20 +62,62 @@ resource "aws_cloudfront_distribution" "frontend" {
   }
 
   viewer_certificate {
-    cloudfront_default_certificate = true
+    cloudfront_default_certificate = false
+    acm_certificate_arn            = var.certificate_arn
+    ssl_support_method             = "sni-only"
+    minimum_protocol_version       = "TLSv1.2_2021"
   }
+  depends_on = [aws_s3_bucket_acl.cloudfront_logs_acl]
+}
 
-  custom_error_response {
-    error_code         = 404
-    response_code      = 200
-    response_page_path = "/index.html"
+resource "aws_s3_bucket" "cloudfront_logs" {
+  bucket = "logs-${var.domain_name}"
+}
+
+resource "aws_s3_bucket_ownership_controls" "cloudfront_logs_ownership" {
+  bucket = aws_s3_bucket.cloudfront_logs.id
+
+  rule {
+    object_ownership = "BucketOwnerPreferred"
   }
+}
 
-  custom_error_response {
-    error_code         = 403
-    response_code      = 200
-    response_page_path = "/index.html"
+resource "aws_s3_bucket_acl" "cloudfront_logs_acl" {
+  depends_on = [aws_s3_bucket_ownership_controls.cloudfront_logs_ownership]
+
+  bucket = aws_s3_bucket.cloudfront_logs.id
+  acl    = "private"
+}
+
+resource "aws_route53_record" "cloudfront_distribution_alias" {
+  count    = var.is_apex_domain ? 0 : 1
+  provider = aws.dns
+  zone_id  = var.hosted_zone_id
+  name     = var.domain_name
+  type     = "CNAME"
+  ttl      = 300
+  records  = [aws_cloudfront_distribution.static_site_distribution.domain_name]
+}
+
+resource "aws_route53_record" "cloudfront_distribution_alias_apex" {
+  count           = var.is_apex_domain ? 1 : 0
+  provider        = aws.dns
+  zone_id         = var.hosted_zone_id
+  name            = var.domain_name
+  type            = "A"
+  allow_overwrite = true
+
+  alias {
+    name                   = aws_cloudfront_distribution.static_site_distribution.domain_name
+    zone_id                = aws_cloudfront_distribution.static_site_distribution.hosted_zone_id
+    evaluate_target_health = false
   }
+}
 
-  tags = var.tags
+# Adding count to cloudfront_distribution_alias changes its state address from
+# `...alias` to `...alias[0]`. This moved block lets terraform migrate the
+# state automatically (avoids destroy+recreate of existing CNAMEs).
+moved {
+  from = aws_route53_record.cloudfront_distribution_alias
+  to   = aws_route53_record.cloudfront_distribution_alias[0]
 }
